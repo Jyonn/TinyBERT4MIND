@@ -1,10 +1,14 @@
 # progress bars in model download and training scripts
-tqdm
+tqdm~=4.31.1
 # Accessing files from S3 directly.
-boto3
+boto3~=1.14.63
 # Used for downloading models over HTTP
-requests
+requests~=2.23.0
 
 torch>=1.0.1
 scipy>=0.14.0
 seaborn
+botocore~=1.17.63
+numpy~=1.16.2
+sklearn~=0.0
+scikit-learn~=0.21.1

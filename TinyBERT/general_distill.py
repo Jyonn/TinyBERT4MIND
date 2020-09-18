@@ -29,7 +29,7 @@ import torch
 from collections import namedtuple
 from tempfile import TemporaryDirectory
 from pathlib import Path
-from torch.utils.data import (DataLoader, RandomSampler,Dataset)
+from torch.utils.data import (DataLoader, RandomSampler, Dataset)
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 from torch.nn import MSELoss
@@ -53,7 +53,6 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 InputFeatures = namedtuple("InputFeatures", "input_ids input_mask segment_ids lm_label_ids is_next")
 
 
@@ -73,7 +72,8 @@ def convert_example_to_features(example, tokenizer, max_seq_length):
         logger.info('tokens: {}\nsegment_ids: {}'.format(tokens, segment_ids))
         segment_ids = [0] * len(tokens)
 
-    assert len(tokens) == len(segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
+    assert len(tokens) == len(
+        segment_ids) <= max_seq_length  # The preprocessed data should be already truncated
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
     masked_label_ids = tokenizer.convert_tokens_to_ids(masked_lm_labels)
 
@@ -119,16 +119,16 @@ class PregeneratedDataset(Dataset):
         if reduce_memory:
             self.temp_dir = TemporaryDirectory()
             self.working_dir = Path('/cache')
-            input_ids = np.memmap(filename=self.working_dir/'input_ids.memmap',
+            input_ids = np.memmap(filename=self.working_dir / 'input_ids.memmap',
                                   mode='w+', dtype=np.int32, shape=(num_samples, seq_len))
-            input_masks = np.memmap(filename=self.working_dir/'input_masks.memmap',
+            input_masks = np.memmap(filename=self.working_dir / 'input_masks.memmap',
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
-            segment_ids = np.memmap(filename=self.working_dir/'segment_ids.memmap',
+            segment_ids = np.memmap(filename=self.working_dir / 'segment_ids.memmap',
                                     shape=(num_samples, seq_len), mode='w+', dtype=np.bool)
-            lm_label_ids = np.memmap(filename=self.working_dir/'lm_label_ids.memmap',
+            lm_label_ids = np.memmap(filename=self.working_dir / 'lm_label_ids.memmap',
                                      shape=(num_samples, seq_len), mode='w+', dtype=np.int32)
             lm_label_ids[:] = -1
-            is_nexts = np.memmap(filename=self.working_dir/'is_nexts.memmap',
+            is_nexts = np.memmap(filename=self.working_dir / 'is_nexts.memmap',
                                  shape=(num_samples,), mode='w+', dtype=np.bool)
         else:
             input_ids = np.zeros(shape=(num_samples, seq_len), dtype=np.int32)
@@ -279,8 +279,11 @@ def main():
         else:
             if i == 0:
                 exit("No training data was found!")
-            print("Warning! There are fewer epochs of pregenerated data ({}) than training epochs ({}).".format(i, args.num_train_epochs))
-            print("This script will loop over the available data, but training diversity may be negatively impacted.")
+            print(
+                "Warning! There are fewer epochs of pregenerated data ({}) than training epochs ({}).".format(
+                    i, args.num_train_epochs))
+            print(
+                "This script will loop over the available data, but training diversity may be negatively impacted.")
             num_data_epochs = i
             break
     else:
@@ -316,7 +319,8 @@ def main():
         torch.cuda.manual_seed_all(args.seed)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+        raise ValueError(
+            "Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
@@ -366,8 +370,10 @@ def main():
     param_optimizer = list(student_model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+         'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
+         'weight_decay': 0.0}
     ]
 
     loss_mse = MSELoss()
@@ -383,13 +389,16 @@ def main():
     logging.info("  Num steps = %d", num_train_optimization_steps)
 
     for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
-        epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data, tokenizer=tokenizer,
-                                            num_data_epochs=num_data_epochs, reduce_memory=args.reduce_memory)
+        epoch_dataset = PregeneratedDataset(epoch=epoch, training_path=args.pregenerated_data,
+                                            tokenizer=tokenizer,
+                                            num_data_epochs=num_data_epochs,
+                                            reduce_memory=args.reduce_memory)
         if args.local_rank == -1:
             train_sampler = RandomSampler(epoch_dataset)
         else:
             train_sampler = DistributedSampler(epoch_dataset)
-        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler, batch_size=args.train_batch_size)
+        train_dataloader = DataLoader(epoch_dataset, sampler=train_sampler,
+                                      batch_size=args.train_batch_size)
 
         tr_loss = 0.
         tr_att_loss = 0.
@@ -409,7 +418,8 @@ def main():
 
                 student_atts, student_reps = student_model(input_ids, segment_ids, input_mask)
                 teacher_reps, teacher_atts, _ = teacher_model(input_ids, segment_ids, input_mask)
-                teacher_reps = [teacher_rep.detach() for teacher_rep in teacher_reps]  # speedup 1.5x
+                teacher_reps = [teacher_rep.detach() for teacher_rep in
+                                teacher_reps]  # speedup 1.5x
                 teacher_atts = [teacher_att.detach() for teacher_att in teacher_atts]
 
                 teacher_layer_num = len(teacher_atts)
@@ -420,13 +430,16 @@ def main():
                                     for i in range(student_layer_num)]
 
                 for student_att, teacher_att in zip(student_atts, new_teacher_atts):
-                    student_att = torch.where(student_att <= -1e2, torch.zeros_like(student_att).to(device),
+                    student_att = torch.where(student_att <= -1e2,
+                                              torch.zeros_like(student_att).to(device),
                                               student_att)
-                    teacher_att = torch.where(teacher_att <= -1e2, torch.zeros_like(teacher_att).to(device),
+                    teacher_att = torch.where(teacher_att <= -1e2,
+                                              torch.zeros_like(teacher_att).to(device),
                                               teacher_att)
                     att_loss += loss_mse(student_att, teacher_att)
 
-                new_teacher_reps = [teacher_reps[i * layers_per_block] for i in range(student_layer_num + 1)]
+                new_teacher_reps = [teacher_reps[i * layers_per_block] for i in
+                                    range(student_layer_num + 1)]
                 new_student_reps = student_reps
 
                 for student_rep, teacher_rep in zip(new_student_reps, new_teacher_reps):
@@ -478,7 +491,8 @@ def main():
                         model_name = "step_{}_{}".format(global_step, WEIGHTS_NAME)
                         logging.info("** ** * Saving fine-tuned model ** ** * ")
                         # Only save the model it-self
-                        model_to_save = student_model.module if hasattr(student_model, 'module') else student_model
+                        model_to_save = student_model.module if hasattr(student_model,
+                                                                        'module') else student_model
 
                         output_model_file = os.path.join(args.output_dir, model_name)
                         output_config_file = os.path.join(args.output_dir, CONFIG_NAME)
@@ -495,7 +509,8 @@ def main():
 
             model_name = "step_{}_{}".format(global_step, WEIGHTS_NAME)
             logging.info("** ** * Saving fine-tuned model ** ** * ")
-            model_to_save = student_model.module if hasattr(student_model, 'module') else student_model
+            model_to_save = student_model.module if hasattr(student_model,
+                                                            'module') else student_model
 
             output_model_file = os.path.join(args.output_dir, model_name)
             output_config_file = os.path.join(args.output_dir, CONFIG_NAME)

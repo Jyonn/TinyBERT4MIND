@@ -111,10 +111,44 @@ class DataProcessor(object):
             reader = csv.reader(f, delimiter="\t", quotechar=quotechar)
             lines = []
             for line in reader:
-                if sys.version_info[0] == 2:
-                    line = list(unicode(cell, 'utf-8') for cell in line)
+                # if sys.version_info[0] == 2:
+                #     line = list(unicode(cell, 'utf-8') for cell in line)
                 lines.append(line)
             return lines
+
+
+class MindProcessor(DataProcessor):
+    """Processor for the MIND data set"""
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_aug_examples(self, data_dir):
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+
+    def get_labels(self):
+        """See base class."""
+        return ["0", "1"]
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, i)
+            text_a = line[0]
+            text_b = line[1]
+            label = line[-1]
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+        return examples
 
 
 class MrpcProcessor(DataProcessor):
@@ -458,6 +492,8 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     for (ex_index, example) in enumerate(examples):
         if ex_index % 10000 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
+        if ex_index == 10000:
+            break
 
         tokens_a = tokenizer.tokenize(example.text_a)
 
@@ -560,6 +596,8 @@ def compute_metrics(task_name, preds, labels):
     elif task_name == "sst-2":
         return {"acc": simple_accuracy(preds, labels)}
     elif task_name == "mrpc":
+        return acc_and_f1(preds, labels)
+    elif task_name == 'mind':
         return acc_and_f1(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
@@ -746,6 +784,7 @@ def main():
         "cola": ColaProcessor,
         "mnli": MnliProcessor,
         "mnli-mm": MnliMismatchedProcessor,
+        "mind": MindProcessor,
         "mrpc": MrpcProcessor,
         "sst-2": Sst2Processor,
         "sts-b": StsbProcessor,
@@ -758,6 +797,7 @@ def main():
     output_modes = {
         "cola": "classification",
         "mnli": "classification",
+        "mind": "classificaition",
         "mrpc": "classification",
         "sst-2": "classification",
         "sts-b": "regression",
@@ -779,7 +819,7 @@ def main():
         "rte": {"num_train_epochs": 20, "max_seq_length": 128}
     }
 
-    acc_tasks = ["mnli", "mrpc", "sst-2", "qqp", "qnli", "rte"]
+    acc_tasks = ["mnli", "mind", "mrpc", "sst-2", "qqp", "qnli", "rte"]
     corr_tasks = ["sts-b"]
     mcc_tasks = ["cola"]
 
